@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=BET Indicator
+Exec=indicator-bet
+Comment=indicator for the Budapest Stock Exchange
+X-GNOME-Autostart-enabled=true

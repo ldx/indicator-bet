@@ -1,0 +1,301 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import gtk
+import gconf
+import gobject
+import time
+import urllib2
+import appindicator
+from BeautifulSoup import BeautifulSoup
+from threading import Thread
+
+class BETWorker(Thread):
+    URL = 'http://online.portfolio.hu/partner/hvg-utf/bet_arfolyam.tdp'
+
+    def __init__(self, tickers=None):
+        Thread.__init__(self)
+        self.tickers = tickers
+        self.values = {}
+        self.all_values = {}
+        self.quit = False
+        self.update = None
+
+    def stop(self):
+        self.quit = True
+
+    def run(self):
+        cnt = -1
+        while not self.quit:
+            try:
+                time.sleep(1)
+            except:
+                break
+            cnt = (cnt + 1) % 300
+            if cnt:
+                continue
+            self.refresh()
+
+    def leaf(self, tag):
+        for text in tag.findAll(text=True):
+            text = text.strip()
+            if text:
+                return text
+        return ''
+
+    def refresh(self):
+        try:
+            f = urllib2.urlopen(BETWorker.URL)
+            inp = f.read()
+            f.close()
+        except:
+            return
+
+        soup = BeautifulSoup(inp)
+
+        date = self.leaf(soup.findAll('table')[5]('tr')[0]('td')[1])
+        date = date.replace('&nbsp;', '')
+
+        self.all_values = {}
+        self.values = {}
+        table = soup.findAll('table')[7]
+        rows = table('tr')
+        for row in rows[1:]:
+            ticker = self.leaf(row('td')[0])
+            self.all_values[ticker] = (self.leaf(row('td')[1]),
+                int(self.leaf(row('td')[2]).replace(',', '')),
+                int(self.leaf(row('td')[10]).replace(',', '')))
+            if self.tickers and ticker not in self.tickers:
+                continue
+            self.values[ticker] = (self.leaf(row('td')[1]),
+                int(self.leaf(row('td')[2]).replace(',', '')),
+                int(self.leaf(row('td')[10]).replace(',', '')))
+
+        if self.update:
+            gobject.idle_add(self.update)
+
+class BETIndicator(object):
+    def __init__(self):
+        client = gconf.client_get_default()
+        client.add_dir('/apps/pybet', gconf.CLIENT_PRELOAD_NONE)
+        notify_id = client.notify_add(EditConfigValues.KEY_ACTIVE_TICKERS,
+                self.key_changed)
+
+        self.bet = BETWorker()
+        self.bet.update = self.refresh
+        self.bet.start()
+
+        self.indicator = appindicator.Indicator('BET', '',
+                appindicator.CATEGORY_OTHER)
+        self.indicator.set_status(appindicator.STATUS_PASSIVE)
+        self.indicator.set_data('client', client)
+
+        self.menu = gtk.Menu()
+        self.indicator.set_menu(self.menu)
+
+        self.refresh()
+
+    def get_tickers(self):
+        client = self.indicator.get_data('client')
+        tickers = client.get_list(EditConfigValues.KEY_ACTIVE_TICKERS,
+                gconf.VALUE_STRING)
+        if not tickers:
+            tickers = []
+        return tickers
+
+    def quit(self, widget=None):
+        self.bet.stop()
+        if widget:
+            gtk.main_quit()
+
+    def ticker_select(self, widget, ticker, value, change):
+        client = self.indicator.get_data('client')
+        client.set_string(EditConfigValues.KEY_DEFAULT_TICKER, ticker)
+        self.update_label()
+
+    def update_label(self):
+        client = self.indicator.get_data('client')
+        ticker = client.get_string(EditConfigValues.KEY_DEFAULT_TICKER)
+        if not ticker:
+            value = 0
+        else:
+            try:
+                time = self.bet.values[ticker][0]
+                value = self.bet.values[ticker][1]
+                change = self.bet.values[ticker][2]
+            except KeyError:
+                value = 0
+
+        if not value:
+            self.indicator.set_label('↑↓')
+        elif change > 0:
+            self.indicator.set_label(''.join(['↑', str(value)]))
+        elif change < 0:
+            self.indicator.set_label(''.join(['↓', str(value)]))
+        else:
+            self.indicator.set_label(''.join(['-', str(value)]))
+
+        self.indicator.set_status(appindicator.STATUS_ACTIVE)
+
+    def edit_ticker_list(self, widget):
+        client = self.indicator.get_data('client')
+        prefs_dialog = EditConfigValues(client)
+
+    def restart_worker(self, widget):
+        self.bet.stop()
+        self.bet = BETWorker()
+        self.bet.update = self.refresh
+        self.bet.start()
+
+    def update_fixed_menu(self):
+        menu_item = gtk.MenuItem('Szerkesztés...')
+        self.menu.append(menu_item)
+        menu_item.set_sensitive(True)
+        menu_item.connect('activate', self.edit_ticker_list)
+        menu_item.show()
+        menu_item = gtk.MenuItem('Frissítés')
+        self.menu.append(menu_item)
+        menu_item.set_sensitive(True)
+        menu_item.connect('activate', self.restart_worker)
+        menu_item.show()
+        menu_item = gtk.MenuItem('Kilépés')
+        self.menu.append(menu_item)
+        menu_item.set_sensitive(True)
+        menu_item.connect('activate', self.quit)
+        menu_item.show()
+
+    def key_changed(self, client, connection_id, entry, args):
+        self.refresh()
+
+    def refresh(self):
+        for child in self.menu.get_children():
+            self.menu.remove(child)
+
+        tickers = self.get_tickers()
+
+        has_ticker = False
+        for ticker in tickers:
+            try:
+                time = self.bet.values[ticker][0]
+                value = self.bet.values[ticker][1]
+                origval = self.bet.values[ticker][2]
+                if origval:
+                    change = round((100.0 * value / origval) - 100.0, 2)
+                else:
+                    change = 0
+            except KeyError:
+                time = '-'
+                value = 0
+                change = 0
+
+            line = '  '.join([ticker, time, str(value), str(change) + '%'])
+            menu_item = gtk.MenuItem(line)
+            self.menu.append(menu_item)
+            menu_item.set_sensitive(True)
+            menu_item.connect('activate', self.ticker_select, ticker, value, change)
+            menu_item.show()
+            has_ticker = True
+
+        if has_ticker:
+            separator = gtk.SeparatorMenuItem()
+            self.menu.append(separator)
+            separator.show()
+
+        self.update_fixed_menu()
+        self.update_label()
+
+class EditConfigValues(object):
+    TICKERS = ['BUX', 'AAA', 'ALTEO', 'ANY', 'APPENINN', 'BIF', 'BIOMED',
+               'BMW', 'BOOK', 'CIGPANNONIA', 'CSEPEL', 'DANUBIUS', 'E-STAR',
+               'EGIS', 'EHEP', 'ELMU', 'EMASZ', 'ESTMEDIA', 'ETFBUXOTP',
+               'EXTERNET', 'FEVITAN', 'FHB', 'FINEXT', 'FORRAS/OE',
+               'FORRAS/T', 'FOTEX', 'FREESOFT', 'GE', 'GENESIS', 'GSPARK',
+               'HUMET', 'HYBRIDBOX', 'KARPOT', 'KEG', 'KONZUM', 'KPACK',
+               'KREDITJOG', 'KULCSSOFT', 'MICRSOFT', 'MOL', 'MTELEKOM',
+               'NORDTELEKOM', 'NUTEX', 'ORC', 'ORMESTER', 'OTP', 'PANNERGY',
+               'PANNUNION', 'PFLAX', 'PHYLAXIA', 'PLOTINUS', 'PVALTO', 'QQQ',
+               'QUAESTOR', 'RABA','RICHTER', 'SYNERGON', 'TCB', 'TVK',
+               'TVNETWORK', 'VISONKA', 'ZWACK']
+    KEY_ACTIVE_TICKERS = '/apps/pybet/active_tickers'
+    KEY_DEFAULT_TICKER = '/apps/pybet/default_ticker'
+
+    def __init__(self, client1):
+        self.selection = None
+
+        client = gconf.client_get_default()
+
+        self.dialog = gtk.Dialog('Beállítások', None, 0)
+        button = self.dialog.add_button('Hozzáad', gtk.RESPONSE_NONE)
+        button.set_data('client', client)
+        button.connect('clicked', self.add_ticker)
+        button.show()
+        button = self.dialog.add_button('Eltávolít', gtk.RESPONSE_NONE)
+        button.set_data('client', client)
+        button.connect('clicked', self.remove_ticker)
+        button.show()
+
+        self.dialog.set_default_response(gtk.RESPONSE_ACCEPT)
+
+        vbox = gtk.VBox(False, 5)
+        self.dialog.vbox.pack_start(vbox)
+
+        combo = gtk.combo_box_new_text()
+        for t in self.TICKERS:
+            combo.append_text(t)
+        combo.connect('changed', self.combo_update)
+
+        vbox.pack_start(combo, False, False)
+
+        self.dialog.show_all()
+
+    def get_active_text(self, combobox):
+        model = combobox.get_model()
+        active = combobox.get_active()
+        if active < 0:
+            return None
+        return model[active][0]
+
+    def combo_update(self, combo, *args):
+        ticker = self.get_active_text(combo)
+        if ticker:
+            self.selection = ticker
+
+    def add_ticker(self, button):
+        if not self.selection:
+            return
+        client = button.get_data('client')
+        tickers = client.get_list(EditConfigValues.KEY_ACTIVE_TICKERS,
+                gconf.VALUE_STRING)
+        if not tickers:
+            tickers = []
+        if self.selection not in tickers:
+            tickers.append(self.selection)
+            client.set_list(EditConfigValues.KEY_ACTIVE_TICKERS,
+                    gconf.VALUE_STRING, tickers)
+            client.notify(EditConfigValues.KEY_ACTIVE_TICKERS)
+
+    def remove_ticker(self, button):
+        if not self.selection:
+            return
+        client = button.get_data('client')
+        tickers = client.get_list(EditConfigValues.KEY_ACTIVE_TICKERS,
+                gconf.VALUE_STRING)
+        def_ticker = client.get_string(EditConfigValues.KEY_DEFAULT_TICKER)
+        if self.selection == def_ticker:
+            client.unset(EditConfigValues.KEY_DEFAULT_TICKER)
+        if not tickers:
+            tickers = []
+        if self.selection in tickers:
+            tickers.remove(self.selection)
+            client.set_list(EditConfigValues.KEY_ACTIVE_TICKERS,
+                    gconf.VALUE_STRING, tickers)
+            client.notify(EditConfigValues.KEY_ACTIVE_TICKERS)
+
+gobject.threads_init()
+
+indicator = BETIndicator()
+
+try:
+    gtk.main()
+except:
+    indicator.quit()
