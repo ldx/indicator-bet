@@ -222,27 +222,41 @@ class EditConfigValues(object):
 
         client = gconf.client_get_default()
 
-        self.dialog = gtk.Dialog('Beállítások', None, 0)
-        button = self.dialog.add_button('Hozzáad', gtk.RESPONSE_NONE)
-        button.set_data('client', client)
-        button.connect('clicked', self.add_ticker)
-        button.show()
-        button = self.dialog.add_button('Eltávolít', gtk.RESPONSE_NONE)
-        button.set_data('client', client)
-        button.connect('clicked', self.remove_ticker)
-        button.show()
+        self.dialog = gtk.Dialog('Beállítások', None,
+                gtk.DIALOG_DESTROY_WITH_PARENT)
 
-        self.dialog.set_default_response(gtk.RESPONSE_ACCEPT)
+        self.dialog.connect('response', lambda w, e: w.destroy())
 
-        vbox = gtk.VBox(False, 5)
-        self.dialog.vbox.pack_start(vbox)
+        # add/remove ticker
+        hbox = gtk.HBox(False, 0)
 
         combo = gtk.combo_box_new_text()
         for t in self.TICKERS:
             combo.append_text(t)
         combo.connect('changed', self.combo_update)
 
-        vbox.pack_start(combo, False, False)
+        abutton = gtk.Button('Hozzáad')
+        abutton.set_data('client', client)
+        abutton.connect('clicked', self.add_ticker)
+
+        rbutton = gtk.Button('Eltávolít')
+        rbutton.set_data('client', client)
+        rbutton.connect('clicked', self.remove_ticker)
+
+        hbox.pack_start(combo, False, False, 5)
+        hbox.pack_start(abutton, False, False, 5)
+        abutton.show()
+        hbox.pack_end(rbutton, False, False, 5)
+        rbutton.show()
+
+        self.dialog.vbox.pack_start(hbox, False, False, 5)
+
+        # close dialog
+        closebox = gtk.HBox(False, 0)
+        button = gtk.Button(None, gtk.STOCK_CLOSE)
+        button.connect('clicked', lambda w: self.dialog.destroy())
+        closebox.pack_start(button, True, False, 0)
+        self.dialog.vbox.pack_start(closebox, False, False, 5)
 
         self.dialog.show_all()
 
