@@ -203,17 +203,16 @@ class BETIndicator(object):
         self.update_label()
 
 class EditConfigValues(object):
-    TICKERS = ['BUX', 'AAA', 'ALTEO', 'ANY', 'APPENINN', 'BIF', 'BIOMED',
-               'BMW', 'BOOK', 'CIGPANNONIA', 'CSEPEL', 'DANUBIUS', 'E-STAR',
-               'EGIS', 'EHEP', 'ELMU', 'EMASZ', 'ESTMEDIA', 'ETFBUXOTP',
-               'EXTERNET', 'FEVITAN', 'FHB', 'FINEXT', 'FORRAS/OE',
-               'FORRAS/T', 'FOTEX', 'FREESOFT', 'GE', 'GENESIS', 'GSPARK',
-               'HUMET', 'HYBRIDBOX', 'KARPOT', 'KEG', 'KONZUM', 'KPACK',
-               'KREDITJOG', 'KULCSSOFT', 'MICRSOFT', 'MOL', 'MTELEKOM',
-               'NORDTELEKOM', 'NUTEX', 'ORC', 'ORMESTER', 'OTP', 'PANNERGY',
-               'PANNUNION', 'PFLAX', 'PHYLAXIA', 'PLOTINUS', 'PVALTO', 'QQQ',
-               'QUAESTOR', 'RABA','RICHTER', 'SYNERGON', 'TCB', 'TVK',
-               'TVNETWORK', 'VISONKA', 'ZWACK']
+    TICKERS = ['ALTEO', 'AAA', 'KARPOT', 'PVALTO', 'CIGPANNONIA', 'VISONKA',
+            'KONZUM', 'FHB', 'KPACK', 'ZWACK', 'APPENINN', 'MASTERPLAST',
+            'ESTMEDIA', 'ETFBUXOTP', 'PANNERGY', 'FORRASOE', 'ORMESTER',
+            'HYBRIDBOX', 'EGIS', 'SYNERGON', 'FUTURAQUA', 'BIF', 'ELMU',
+            'KREDITJOG', 'CSEPEL', 'TCB', 'ESTAR', 'TVK', 'PLOTINUS', 'PFLAX',
+            'QUAESTOR', 'MTELEKOM', 'SHOP', 'EXTERNET', 'FORRAST', 'EMASZ',
+            'PHYLAXIA', 'OPTISOFT', 'BTEL', 'GSPARK', 'EHEP', 'RICHTER',
+            'TVNETWORK', 'FINEXT', 'NORDTELEKOM', 'FREESOFT', 'KULCSSOFT',
+            'KEG', 'DANUBIUS', 'NUTEX', 'RABA', 'HUNMINING', 'BIOMEDICAL',
+            'MOL', 'OTP', 'ANY']
     KEY_ACTIVE_TICKERS = '/apps/pybet/active_tickers'
     KEY_DEFAULT_TICKER = '/apps/pybet/default_ticker'
 
