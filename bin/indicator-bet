@@ -281,6 +281,7 @@ class EditConfigValues(object):
                 gconf.VALUE_STRING)
         if not tickers:
             tickers = []
+        tickers = [t for t in tickers if t in EditConfigValues.TICKERS]
         if self.selection not in tickers:
             tickers.append(self.selection)
             client.set_list(EditConfigValues.KEY_ACTIVE_TICKERS,
@@ -298,6 +299,7 @@ class EditConfigValues(object):
             client.unset(EditConfigValues.KEY_DEFAULT_TICKER)
         if not tickers:
             tickers = []
+        tickers = [t for t in tickers if t in EditConfigValues.TICKERS]
         if self.selection in tickers:
             tickers.remove(self.selection)
             client.set_list(EditConfigValues.KEY_ACTIVE_TICKERS,
