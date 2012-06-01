@@ -230,7 +230,9 @@ class EditConfigValues(object):
         hbox = gtk.HBox(False, 0)
 
         combo = gtk.combo_box_new_text()
-        for t in self.TICKERS:
+        tickers = self.TICKERS[:]
+        tickers.sort()
+        for t in tickers:
             combo.append_text(t)
         combo.connect('changed', self.combo_update)
 
