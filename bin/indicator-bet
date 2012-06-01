@@ -11,13 +11,12 @@ from BeautifulSoup import BeautifulSoup
 from threading import Thread
 
 class BETWorker(Thread):
-    URL = 'http://online.portfolio.hu/partner/hvg-utf/bet_arfolyam.tdp'
+    URL = 'http://www.portfolio.hu/tozsde/index_frame.tdp'
 
     def __init__(self, tickers=None):
         Thread.__init__(self)
         self.tickers = tickers
         self.values = {}
-        self.all_values = {}
         self.quit = False
         self.update = None
 
@@ -56,20 +55,16 @@ class BETWorker(Thread):
         date = self.leaf(soup.findAll('table')[5]('tr')[0]('td')[1])
         date = date.replace('&nbsp;', '')
 
-        self.all_values = {}
         self.values = {}
-        table = soup.findAll('table')[7]
-        rows = table('tr')
-        for row in rows[1:]:
-            ticker = self.leaf(row('td')[0])
-            self.all_values[ticker] = (self.leaf(row('td')[1]),
-                int(self.leaf(row('td')[2]).replace(',', '')),
-                int(self.leaf(row('td')[10]).replace(',', '')))
-            if self.tickers and ticker not in self.tickers:
-                continue
-            self.values[ticker] = (self.leaf(row('td')[1]),
-                int(self.leaf(row('td')[2]).replace(',', '')),
-                int(self.leaf(row('td')[10]).replace(',', '')))
+        table = soup.findAll('table')[8]
+        row = table('tr')[2]
+        tickers = [self.leaf(x) for x in row('td')[0].findAll('a', { "class" : "tic" })]
+        times = row('td')[1].findAll(text=True)
+        prices = [int(x.replace(',', '')) for x in row('td')[2].findAll(text=True)]
+        changes = [int(round(float(x.replace(',', '')))) for x in row('td')[4].findAll(text=True)]
+        for ticker, time, price, change in zip(tickers, times, prices, changes):
+            if not self.tickers or ticker in self.tickers:
+                self.values[ticker] = (time, price, change)
 
         if self.update:
             gobject.idle_add(self.update)
@@ -122,8 +117,7 @@ class BETIndicator(object):
             try:
                 time = self.bet.values[ticker][0]
                 value = self.bet.values[ticker][1]
-                orig = self.bet.values[ticker][2]
-                change = orig and round(100.0 * value / orig - 100.0, 2) or 0
+                change = self.bet.values[ticker][2]
             except KeyError:
                 value = 0
 
@@ -179,8 +173,7 @@ class BETIndicator(object):
             try:
                 time = self.bet.values[ticker][0]
                 value = self.bet.values[ticker][1]
-                orig = self.bet.values[ticker][2]
-                change = orig and round(100.0 * value / orig - 100.0, 2) or 0
+                change = self.bet.values[ticker][2]
             except KeyError:
                 time = '-'
                 value = 0
